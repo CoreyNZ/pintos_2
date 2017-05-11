@@ -147,7 +147,6 @@ thread_print_stats (void)
   printf ("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
           idle_ticks, kernel_ticks, user_ticks);
 }
-
 /* Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
@@ -218,8 +217,7 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
-  
-  
+ 
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -230,6 +228,7 @@ thread_block (void)
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
+
 void
 thread_unblock (struct thread *t) 
 {
@@ -240,8 +239,10 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   //list_push_back (&list_insert_ordered(), &t->elem);
+  /* My code begins */
   list_insert_ordered(&ready_list, &t->elem, &thread_comparing_priority, NULL);
   t->status = THREAD_READY;
+  /* My code ends */
   intr_set_level (old_level);
 }
 
@@ -312,7 +313,9 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread) 
   //list_push_back (&list_insert_ordered, &cur->elem);
+  /* My code begins */
   list_insert_ordered(&ready_list, &cur->elem, &thread_comparing_priority, NULL);
+  /* My code ends */
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -589,12 +592,12 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-
+/* My code begins */
 bool
 thread_comparing_priority(const struct list_elem *a, const struct list_elem *b, void *aux){
     struct thread *thread_A = list_entry (a, struct thread, elem);
     struct thread *thread_B = list_entry (b, struct thread, elem);
     
     return thread_A-> priority > thread_B->priority;
-   
 }
+/* My code ends */
