@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "threads/interrupt.h"
+//#include "threads/thread.c"
 #include "threads/thread.h"
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
@@ -68,9 +69,22 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_push_back (&sema->waiters, &thread_current ()->elem);
-      thread_block ();
+      /*My code begins*/
+      
+      /*
+      if (!thread_mlfqs){
+          donate_priority();
+      }
+      */
+      
+      
+      //remove push_back, replace with insert_ordered & waiters can control thread
+      list_insert_ordered(&sema->waiters, &thread_current ()->elem, (list_less_func *) &thread_priority_comparator, NULL);
+      thread_block();
+      
+      /*My code ends*/
     }
+  
   sema->value--;
   intr_set_level (old_level);
 }
@@ -113,10 +127,23 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
+  
+  if (!list_empty (&sema->waiters)) {
+  /*My code begins*/
+      //sort the queue, priority should be in descending order 
+      list_sort(&sema -> waiters,(list_less_func *) &thread_priority_comparator, NULL);
+      thread_unblock(list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
+  }
+    
   sema->value++;
+  
+  if (!intr_context()){
+      thread_test();
+  }
+  
+  /*My code ends*/
+  
   intr_set_level (old_level);
 }
 
@@ -336,3 +363,7 @@ cond_broadcast (struct condition *cond, struct lock *lock)
   while (!list_empty (&cond->waiters))
     cond_signal (cond, lock);
 }
+
+
+
+

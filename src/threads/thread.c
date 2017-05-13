@@ -14,8 +14,7 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
-//testing testing 123
-//second test
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -147,6 +146,7 @@ thread_print_stats (void)
   printf ("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
           idle_ticks, kernel_ticks, user_ticks);
 }
+
 /* Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
@@ -171,7 +171,6 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
-
   ASSERT (function != NULL);
 
   /* Allocate thread. */
@@ -182,7 +181,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-
+  enum intr_level old_level = intr_disable();  //my code
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -197,10 +196,14 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
+  /*My code begins*/
+  intr_set_level(old_level);
   /* Add to run queue. */
   thread_unblock (t);
-
+  old_level = intr_disable();
+  thread_yield();
+  intr_set_level(old_level);
+  /*My code ends*/
   return tid;
 }
 
@@ -217,7 +220,6 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
- 
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -240,7 +242,7 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   //list_push_back (&list_insert_ordered(), &t->elem);
   /* My code begins */
-  list_insert_ordered(&ready_list, &t->elem, &thread_comparing_priority, NULL);
+  list_insert_ordered(&ready_list, &t->elem, &thread_priority_comparator, NULL);
   t->status = THREAD_READY;
   /* My code ends */
   intr_set_level (old_level);
@@ -314,7 +316,7 @@ thread_yield (void)
   if (cur != idle_thread) 
   //list_push_back (&list_insert_ordered, &cur->elem);
   /* My code begins */
-  list_insert_ordered(&ready_list, &cur->elem, &thread_comparing_priority, NULL);
+  list_insert_ordered(&ready_list, &cur->elem, &thread_priority_comparator, NULL);
   /* My code ends */
   cur->status = THREAD_READY;
   schedule ();
@@ -342,7 +344,24 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  /* My code begins */
+  
+    
+  //Thread priorities range from PRI_MIN(0) to PRI_MAX(63) 
+  ASSERT (PRI_MIN <= new_priority && new_priority <= PRI_MAX);
+  /*My code ends*/
   thread_current ()->priority = new_priority;
+  
+  /*My code begins*/
+  if(list_empty(&ready_list)){  
+      return;
+  }
+  struct list_elem *e = list_front(&ready_list);
+  struct thread *t = list_entry(e, struct thread, elem);
+  if(t->priority > thread_current()->priority){
+      thread_yield();
+  }
+  /*My code ends*/
 }
 
 /* Returns the current thread's priority. */
@@ -586,18 +605,37 @@ allocate_tid (void)
   return tid;
 }
 
-
-
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 /* My code begins */
-bool
-thread_comparing_priority(const struct list_elem *a, const struct list_elem *b, void *aux){
+/* Compares the priority of two list elements and returns true if 
+ * the first element is >= the second element*/
+bool thread_priority_comparator(const struct list_elem *a, const struct list_elem *b, void *aux){
     struct thread *thread_A = list_entry (a, struct thread, elem);
     struct thread *thread_B = list_entry (b, struct thread, elem);
-    
     return thread_A-> priority > thread_B->priority;
 }
+/*
+* http://www.scs.stanford.edu/12au-cs140/pintos/pintos_2.html
+* Very Helpful resource for understanding what is required. 
+*/
+
+/* Should the current thread be out of the CPU? */ 
+void thread_test(void)
+{
+  struct thread *test;
+  
+  if (list_empty(&ready_list)){
+    return;
+  }
+  
+  test = list_entry(list_front(&ready_list), struct thread, elem);
+  
+  if ((thread_current() -> priority) < test -> priority) {
+    thread_yield();
+  }
+}
+
 /* My code ends */
